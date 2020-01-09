@@ -1,0 +1,11 @@
+{
+  "name": "basic-serverless-ci-cd",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "setupserverless": "cd src && npm install"
+},
+  "author": "",
+  "license": "ISC"
+}
