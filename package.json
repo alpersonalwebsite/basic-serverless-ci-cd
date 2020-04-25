@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "setupserverless": "cd src && npm install"
-},
+  },
   "author": "",
   "license": "ISC"
 }
