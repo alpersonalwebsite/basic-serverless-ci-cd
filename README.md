@@ -46,5 +46,5 @@ Variable in Parameter Store
   1. Description: Certificate ARN for serverless-domain-manager
   1. Tier: Standard
   1. Type: String
-  1. Value: your certificate ARN. Example: arn:aws:acm:us-east-1:573844444883:certificate/1562225e-b228-4426-9c7f-553624356454
+  1. Value: your certificate ARN. Example: arn:aws:acm:us-east-1:your-aws-account-id:certificate/******
 1. In `serverless.yml` replace your certificate ARN with `${ssm:/AllEnvironments/certificateARN}`
