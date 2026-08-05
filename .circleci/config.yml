@@ -29,9 +29,16 @@ jobs:
           # silently re-resolving. Node 12 ships npm 6, which cannot read a modern
           # lockfileVersion 3 file, so generating a package-lock here would have
           # broken this job.
+          #
+          # --cache-folder is passed explicitly so the cached path below is certain
+          # rather than assumed. yarn 1.x picks its cache directory as
+          # $XDG_CACHE_HOME/yarn if that variable is set, ~/Library/Caches/Yarn on
+          # macOS, and ~/.cache/yarn otherwise (see yarn's util/user-dirs.js), so an
+          # image that happens to set XDG_CACHE_HOME would leave the cache below
+          # pointing at nothing.
           command: |
             cd src/
-            yarn install --frozen-lockfile
+            yarn install --frozen-lockfile --cache-folder ~/.cache/yarn
       - save_cache:
           key: yarn-cache-{{ checksum "src/yarn.lock" }}
           # The package cache, not node_modules: the install step recreates
