@@ -29,8 +29,14 @@ Locally, pick the profile per command instead of hardcoding it:
 
 ```shell
 cd src
+yarn install --frozen-lockfile
 AWS_PROFILE=serverless-admin npx serverless deploy -v
 ```
+
+Dependencies are installed with **yarn** from the committed `yarn.lock`. Node 12
+ships npm 6, which cannot read a modern `lockfileVersion: 3` `package-lock.json`, and
+`--frozen-lockfile` installs exactly the tree this project was built against instead
+of re-resolving it.
 
 Node is pinned to 12.16 in `.nvmrc` and in the CircleCI executor, matching the
 `nodejs12.x` Lambda runtime.
@@ -107,7 +113,18 @@ certificateArn: ${env:CERTIFICATE_ARN, ssm:/AllEnvironments/certificateARN}
 ```
 
 `CERTIFICATE_ARN` takes precedence if it is set, which is how a deploy role without
-`ssm:GetParameter` can still work. Note that serverless 1.x resolves both sides of a
-fallback concurrently, so it probes SSM either way: with credentials configured the
-probe fails fast and the environment value wins, and with no credentials at all you
-will see "taking longer than expected" for a while before it settles.
+`ssm:GetParameter` can still work.
+
+Note that serverless 1.x resolves both sides of a fallback concurrently, so it probes
+SSM even when the environment variable is set. How quickly that probe gives up
+depends on the machine: with AWS credentials configured, even invalid ones, it fails
+fast and the environment value wins in about a second, while with no AWS
+configuration at all it may return immediately or sit printing "taking longer than
+expected" while the credential chain times out. If you are only trying to inspect the
+config, export dummy credentials alongside `CERTIFICATE_ARN`:
+
+```shell
+CERTIFICATE_ARN=arn:aws:acm:us-east-1:111122223333:certificate/test \
+AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy AWS_REGION=us-east-1 \
+  npx serverless print
+```

@@ -3,10 +3,12 @@ version: 2.1
 executors:
   custom-executor:
     docker:
-      # Pinned rather than :lts. The Lambda runtime is nodejs12.x, so CI should be
-      # Node 12 too: an unpinned lts tag silently drifts away from the runtime the
-      # code actually executes on.
-      - image: circleci/node:12.16-browsers
+      # Pinned, and without -browsers. The Lambda runtime is nodejs12.x, so CI
+      # should be Node 12 rather than a floating lts tag that can drift onto a
+      # different major than production runs. Nothing here drives a browser, so the
+      # Chrome and Firefox layers in the -browsers variant were dead weight.
+      - image: circleci/node:12.16
+    working_directory: ~/project
 
 jobs:
   build:
@@ -14,26 +16,32 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: dependency-cache-{{ checksum "src/package-lock.json" }}
+          key: yarn-cache-{{ checksum "src/yarn.lock" }}
       - run:
           name: Installing serverless and plugins
-          # The deploy job runs ./node_modules/.bin/serverless from inside src/, so
-          # the dependencies have to be installed THERE. The old config ran
-          # `npm install` at the repository root, whose package.json declares no
-          # dependencies at all, so the binary the deploy job invokes never existed.
-          # npm ci rather than npm install: the cache key is already the lockfile's
-          # checksum, and ci installs exactly what the lockfile pins.
+          # Installed in src/, because that is where the dependencies are declared
+          # and where the deploy job runs ./node_modules/.bin/serverless. The old
+          # config installed at the repository root, whose package.json declares no
+          # dependencies at all, so the binary deploy invokes never existed.
+          #
+          # yarn with the committed yarn.lock, not npm: --frozen-lockfile installs
+          # exactly the tree this project was built against and fails rather than
+          # silently re-resolving. Node 12 ships npm 6, which cannot read a modern
+          # lockfileVersion 3 file, so generating a package-lock here would have
+          # broken this job.
           command: |
             cd src/
-            npm ci
+            yarn install --frozen-lockfile
       - save_cache:
-          key: dependency-cache-{{ checksum "src/package-lock.json" }}
+          key: yarn-cache-{{ checksum "src/yarn.lock" }}
+          # The package cache, not node_modules: the install step recreates
+          # node_modules regardless, so caching it saves nothing.
           paths:
-            - src/node_modules
+            - ~/.cache/yarn
       - persist_to_workspace:
-          root: /home/circleci/project
-          # `app` used to be listed here and does not exist in this repository.
-          # src/node_modules is what the deploy job needs.
+          root: ~/project
+          # `app` used to be listed here and has never existed in this repository.
+          # src carries both the source and the installed framework.
           paths:
             - src
 
@@ -42,7 +50,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project
       - run:
           name: Test
           # Placeholder. Note that deploy depends on this job, so it is a gate that
@@ -54,7 +62,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project
       - run:
           name: Lint
           command: echo "Linting..."
@@ -64,7 +72,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project
       - run:
           name: SLS deploy
           # Credentials come from the standard AWS environment variables, which is

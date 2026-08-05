@@ -15,10 +15,16 @@ custom:
     #
     # CERTIFICATE_ARN overrides the SSM lookup, so a CI job whose role cannot read
     # the parameter can still deploy, and `serverless print` can be checked with a
-    # throwaway value. Measured caveat: serverless 1.x resolves both branches of a
-    # fallback concurrently, so it still probes SSM. With credentials present the
-    # probe fails fast and the env value wins; with no credentials configured at all
-    # it prints "taking longer than expected" for a while before settling.
+    # throwaway value.
+    #
+    # Caveat: serverless 1.x resolves both branches of a fallback concurrently, so
+    # it probes SSM even when the environment variable is set. How long that probe
+    # takes to give up is environment-dependent. With credentials configured, even
+    # invalid ones, it fails fast and the env value wins in about a second. With no
+    # AWS configuration at all it may return immediately or hang while the
+    # credential chain times out, printing "taking longer than expected"; measured
+    # both outcomes on different machines, and past 60 seconds on one of them. If
+    # you hit that, export dummy AWS credentials alongside CERTIFICATE_ARN.
     certificateArn: ${env:CERTIFICATE_ARN, ssm:/AllEnvironments/certificateARN}
 
 plugins:
