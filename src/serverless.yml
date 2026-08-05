@@ -7,10 +7,19 @@ custom:
   customDomain:
     domainName: 'api.anhydride.info'
     basePath: api
-    certificateName: '*.anhydride.info'
     #createRoute53Record: true
     securityPolicy: tls_1_2
-    certificateArn: ${ssm:/AllEnvironments/certificateARN}
+    # certificateArn wins over certificateName in serverless-domain-manager, so
+    # setting both only invites confusion about which one applies. The ARN is the
+    # unambiguous one, so keep it.
+    #
+    # CERTIFICATE_ARN overrides the SSM lookup, so a CI job whose role cannot read
+    # the parameter can still deploy, and `serverless print` can be checked with a
+    # throwaway value. Measured caveat: serverless 1.x resolves both branches of a
+    # fallback concurrently, so it still probes SSM. With credentials present the
+    # probe fails fast and the env value wins; with no credentials configured at all
+    # it prints "taking longer than expected" for a while before settling.
+    certificateArn: ${env:CERTIFICATE_ARN, ssm:/AllEnvironments/certificateARN}
 
 plugins:
   - serverless-domain-manager
@@ -20,8 +29,13 @@ provider:
   runtime: nodejs12.x
   region: us-east-1
   stage: dev
-  # If you have multiple accounts use profile
-  profile: serverless-admin
+  # No `profile:` here on purpose. A named profile only exists in someone's local
+  # ~/.aws/credentials, so hardcoding one made this config unreadable anywhere else,
+  # CI included: serverless 1.60.5 fails with "Profile serverless-admin does not
+  # exist" before it can even print. Without it the standard AWS chain applies, so
+  # CI uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY and locally you pick a profile
+  # per command:
+  #   AWS_PROFILE=serverless-admin npx serverless deploy
   logs:
     restApi: true
 
