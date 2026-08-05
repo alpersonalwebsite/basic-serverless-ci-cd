@@ -5,7 +5,9 @@ jspm_packages
 # Serverless directories
 .serverless
 
-# ev
+# env files. `.env.*` alone does NOT match a plain `.env`, so it was possible to
+# commit one.
+.env
 .env.*
 
 # logs
@@ -13,3 +15,18 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# secrets and keys
+secrets/
+credentials*
+*.pem
+*.key
+
+# logs and local databases
+*.log
+*.sqlite
+*.db
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
