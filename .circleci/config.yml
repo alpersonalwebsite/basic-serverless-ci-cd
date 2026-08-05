@@ -3,7 +3,10 @@ version: 2.1
 executors:
   custom-executor:
     docker:
-      - image: circleci/node:lts-browsers
+      # Pinned rather than :lts. The Lambda runtime is nodejs12.x, so CI should be
+      # Node 12 too: an unpinned lts tag silently drifts away from the runtime the
+      # code actually executes on.
+      - image: circleci/node:12.16-browsers
 
 jobs:
   build:
@@ -11,20 +14,28 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: dependency-cache-{{ checksum "package-lock.json" }}
-      - run: 
-          name: Installing local dependencies
-          command: npm install
+          key: dependency-cache-{{ checksum "src/package-lock.json" }}
+      - run:
+          name: Installing serverless and plugins
+          # The deploy job runs ./node_modules/.bin/serverless from inside src/, so
+          # the dependencies have to be installed THERE. The old config ran
+          # `npm install` at the repository root, whose package.json declares no
+          # dependencies at all, so the binary the deploy job invokes never existed.
+          # npm ci rather than npm install: the cache key is already the lockfile's
+          # checksum, and ci installs exactly what the lockfile pins.
+          command: |
+            cd src/
+            npm ci
       - save_cache:
-          key: dependency-cache-{{ checksum "package-lock.json" }}
+          key: dependency-cache-{{ checksum "src/package-lock.json" }}
           paths:
-            - node_modules
+            - src/node_modules
       - persist_to_workspace:
           root: /home/circleci/project
-          paths: 
-            - app
+          # `app` used to be listed here and does not exist in this repository.
+          # src/node_modules is what the deploy job needs.
+          paths:
             - src
-            - node_modules
 
   test:
     executor: custom-executor
@@ -34,6 +45,8 @@ jobs:
           at: /home/circleci/project
       - run:
           name: Test
+          # Placeholder. Note that deploy depends on this job, so it is a gate that
+          # currently always opens.
           command: echo "Run some tests..."
 
   lint:
@@ -54,7 +67,14 @@ jobs:
           at: /home/circleci/project
       - run:
           name: SLS deploy
-          command: | 
+          # Credentials come from the standard AWS environment variables, which is
+          # why serverless.yml no longer pins a local `profile:`. Set these in the
+          # CircleCI project (or a context) before this can succeed:
+          #   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+          # The deploy role also needs ssm:GetParameter for
+          # /AllEnvironments/certificateARN, or set CERTIFICATE_ARN to skip the
+          # lookup. See the README.
+          command: |
             cd src/
             ./node_modules/.bin/serverless deploy -v
 
@@ -66,11 +86,11 @@ workflows:
       - test:
           requires:
             - build
-      - lint: 
+      - lint:
           requires:
             - build
       - deploy:
-          requires: 
+          requires:
             - build
             - test
           filters:
